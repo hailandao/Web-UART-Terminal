@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Web UART Terminal</title>
+    <style>
+        *{box-sizing:border-box;font-family:Arial,sans-serif}
+        body{margin:20px;background:#f5f5f5}
+        .container{max-width:1200px;margin:0 auto;background:white;padding:20px;border-radius:8px;box-shadow:0 10px 20px rgba(0,0,0,0.08)}
+        
+        /* 修改后的标题：取消加粗 + 缩小30% */
+        #title{
+            font-size: 20px;
+            font-weight: normal;
+            margin-top:10px;
+            margin-bottom:20px;
+            text-align:left;
+            color: #333;
+        }
+
+        .config{
+            display:flex;
+            gap:8px;
+            margin-bottom:15px;
+            flex-wrap:wrap;
+            align-items:center;
+        }
+        select,button,input{padding:8px;border:1px solid #ccc;border-radius:4px}
+        
+        #connectBtn, #sendBtn, #langBtn, #clearBtn {
+            cursor:pointer;
+            background:rgba(0,123,255,0.15);
+            color:#007bff;
+            border:1px solid #007bff;
+        }
+
+        #langBtn{
+            margin-left: auto;
+            padding: 8px 10px;
+            width: auto;
+        }
+
+        .log-container{
+            position:relative;
+            margin-bottom:15px;
+        }
+        .log-box{
+            width:100%;
+            height:420px;
+            border:1px solid #ccc;
+            padding:10px;
+            overflow-y:auto;
+            background:#fafafa;
+            line-height: 1.6;
+        }
+        .log-item {
+            margin: 4px 0;
+        }
+        .log-content {
+            display: block;
+            margin-top: 2px;
+            white-space: normal;
+            word-wrap: break-word;
+        }
+        .log-send { color: #007bff; }
+        .log-receive { color: #28a745; }
+        .log-normal { color: #333; }
+        
+        #clearBtn{
+            position:absolute;
+            bottom:10px;
+            right:10px;
+            width:80px;
+        }
+
+        .send-box{display:flex;gap:10px}
+        #sendInput{flex:1;padding:8px}
+        #sendBtn{width:80px;}
+
+        /* 底部开发者信息 - 居中 */
+        .footer {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #666;
+            line-height: 1.4;
+            text-align: center;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 id="title">网页串口助手</h1>
+
+    <div class="config">
+        <select id="baudRate">
+            <option value="115200" selected>115200</option>
+            <option value="57600">57600</option>
+            <option value="38400">38400</option>
+            <option value="19200">19200</option>
+            <option value="9600">9600</option>
+            <option value="4800">4800</option>
+        </select>
+
+        <select id="dataBits">
+            <option value="8" data-zh="8数据位" data-en="8 Data Bits">8数据位</option>
+            <option value="7" data-zh="7数据位" data-en="7 Data Bits">7数据位</option>
+            <option value="6" data-zh="6数据位" data-en="6 Data Bits">6数据位</option>
+            <option value="5" data-zh="5数据位" data-en="5 Data Bits">5数据位</option>
+        </select>
+
+        <select id="stopBits">
+            <option value="1" data-zh="1停止位" data-en="1 Stop Bit">1停止位</option>
+            <option value="1.5" data-zh="1.5停止位" data-en="1.5 Stop Bits">1.5停止位</option>
+            <option value="2" data-zh="2停止位" data-en="2 Stop Bits">2停止位</option>
+        </select>
+
+        <select id="parity">
+            <option value="none" data-zh="无校验" data-en="No Parity">无校验</option>
+            <option value="odd" data-zh="奇校验" data-en="Odd Parity">奇校验</option>
+            <option value="even" data-zh="偶校验" data-en="Even Parity">偶校验</option>
+        </select>
+
+        <select id="checkType">
+            <option value="none" data-zh="无附加位" data-en="No Check">无附加位</option>
+            <option value="checksum8" data-zh="Checksum8" data-en="Checksum8">Checksum8</option>
+            <option value="crc8" data-zh="CRC8" data-en="CRC8">CRC8</option>
+            <option value="checksum16" data-zh="Checksum16" data-en="Checksum16">Checksum16</option>
+        </select>
+
+        <select id="sendMode">
+            <option value="hex" data-zh="十六进制" data-en="Hex">十六进制</option>
+            <option value="text" data-zh="文本模式" data-en="Text">文本模式</option>
+        </select>
+
+        <button id="connectBtn">连接串口</button>
+        <button id="langBtn">English</button>
+    </div>
+
+    <div class="log-container">
+        <div class="log-box" id="log"></div>
+        <button id="clearBtn">清空日志</button>
+    </div>
+
+    <div class="send-box">
+        <input type="text" id="sendInput" placeholder="输入发送内容">
+        <button id="sendBtn">发送</button>
+    </div>
+
+    <!-- 底部居中开发者信息 -->
+    <div class="footer" id="footer">
+        由hailandao开发，博客：hailandao.com，邮箱：dm@eejaa.com
+    </div>
+</div>
+
+<script>
+const i18n = {
+    zh: {
+        title: "网页串口助手",
+        connect: "连接串口",
+        disconnect: "断开串口",
+        clear: "清空日志",
+        send: "发送",
+        inputPlaceholder: "输入发送内容",
+        langBtn: "English",
+        connectSuccess: "✅ 连接成功",
+        connectFail: "❌ 连接失败：",
+        disconnected: "🔌 已断开",
+        notConnected: "❌ 未连接",
+        sendFail: "❌ 发送失败：",
+        footer: "由hailandao开发，博客：hailandao.com，邮箱：dm@eejaa.com"
+    },
+    en: {
+        title: "Web UART Terminal",
+        connect: "Connect",
+        disconnect: "Disconnect",
+        clear: "Clear Log",
+        send: "Send",
+        inputPlaceholder: "Enter content",
+        langBtn: "中文",
+        connectSuccess: "✅ Connected",
+        connectFail: "❌ Connect failed: ",
+        disconnected: "🔌 Disconnected",
+        notConnected: "❌ Not connected",
+        sendFail: "❌ Send failed: ",
+        footer: "Developed by hailandao. Blog: hailandao.com. Email: dm@eejaa.com"
+    }
+};
+
+let currentLang = 'zh';
+let port = null;
+let reader = null;
+let isConnected = false;
+const logBox = document.getElementById('log');
+const footer = document.getElementById('footer');
+
+let receiveBuffer = new Uint8Array();
+let receiveTimer = null;
+const FRAME_TIMEOUT = 30;
+
+document.getElementById('langBtn').onclick = () => {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    updateLanguage();
+};
+
+function updateLanguage() {
+    const lang = i18n[currentLang];
+    document.getElementById('title').textContent = lang.title;
+    document.getElementById('langBtn').textContent = lang.langBtn;
+    document.getElementById('connectBtn').textContent = isConnected ? lang.disconnect : lang.connect;
+    document.getElementById('clearBtn').textContent = lang.clear;
+    document.getElementById('sendBtn').textContent = lang.send;
+    document.getElementById('sendInput').placeholder = lang.inputPlaceholder;
+    footer.textContent = lang.footer;
+
+    ['dataBits','stopBits','parity','checkType','sendMode'].forEach(id => {
+        const el = document.getElementById(id);
+        for(let opt of el.options) opt.textContent = opt.getAttribute(`data-${currentLang}`);
+    });
+}
+
+function calcChecksum8(d){let s=0;for(let b of d)s+=b;return s&0xFF;}
+function calcChecksum16(d){let s=0;for(let b of d)s+=b;return s&0xFFFF;}
+function calcCrc8(d){let c=0;for(let b of d){c^=b;for(let i=0;i<8;i++)c&1?c=(c>>1)^0x8C:c>>=1;}return c&0xFF;}
+function buf2hex(b){return Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join(' ');}
+
+// 格式：Tx Hex >、Rx Hex <、Tx Text >、Rx Text <
+function getLogTag(isSend) {
+    const mode = document.getElementById('sendMode').value;
+    if (isSend) {
+        return mode === "hex" ? "Tx Hex >" : "Tx Text >";
+    } else {
+        return mode === "hex" ? "Rx Hex <" : "Rx Text <";
+    }
+}
+
+document.getElementById('connectBtn').onclick = async () => {
+    const lang = i18n[currentLang];
+    if (!isConnected) {
+        try {
+            port = await navigator.serial.requestPort();
+            await port.open({
+                baudRate: +document.getElementById('baudRate').value,
+                dataBits: +document.getElementById('dataBits').value,
+                stopBits: +document.getElementById('stopBits').value,
+                parity: document.getElementById('parity').value,
+                flowControl: "none"
+            });
+            isConnected = true;
+            receiveBuffer = new Uint8Array();
+            document.getElementById('connectBtn').textContent = lang.disconnect;
+            addLog(lang.connectSuccess, 'normal');
+            readLoop();
+        } catch (e) {
+            addLog(lang.connectFail + e.message, 'normal');
+            port = null; isConnected = false;
+        }
+    } else {
+        try {
+            if(reader) await reader.cancel();
+            await port.close();
+            port = null; reader = null; isConnected = false;
+            receiveBuffer = new Uint8Array();
+            document.getElementById('connectBtn').textContent = lang.connect;
+            addLog(lang.disconnected, 'normal');
+        } catch(e){ addLog("⚠️ Error: "+e.message,'normal') }
+    }
+};
+
+async function readLoop(){
+    if(!port)return;
+    try{
+        reader=port.readable.getReader();
+        while(1){
+            const {value,done}=await reader.read();
+            if(done) break;
+            if(!value || value.length===0) continue;
+
+            receiveBuffer = new Uint8Array([...receiveBuffer, ...value]);
+            clearTimeout(receiveTimer);
+            receiveTimer = setTimeout(()=>{
+                const mode = document.getElementById('sendMode').value;
+                const content = mode==='hex' ? buf2hex(receiveBuffer) : new TextDecoder().decode(receiveBuffer);
+                addLogContent(getLogTag(false), content, 'receive');
+                receiveBuffer = new Uint8Array();
+            }, FRAME_TIMEOUT);
+        }
+    }catch(e){if(isConnected)addLog("⚠️ Read error: "+e.message,'normal')}
+    finally{reader.releaseLock()}
+}
+
+document.getElementById('sendBtn').onclick=async()=>{
+    const lang=i18n[currentLang];
+    if(!isConnected||!port){addLog(lang.notConnected,'normal');return}
+    let ipt=document.getElementById('sendInput').value.trim();
+    const mode=document.getElementById('sendMode').value;
+    const ck=document.getElementById('checkType').value;
+    let buf;
+    try{
+        if(mode==='hex'){ipt=ipt.replace(/\s+/g,'');buf=new Uint8Array(ipt.match(/.{1,2}/g).map(b=>parseInt(b,16)));}
+        else buf=new TextEncoder().encode(ipt);
+        
+        let final=buf;
+        if(ck==='checksum8')final=new Uint8Array([...buf,calcChecksum8(buf)]);
+        if(ck==='crc8')final=new Uint8Array([...buf,calcCrc8(buf)]);
+        if(ck==='checksum16')final=new Uint8Array([...buf,calcChecksum16(buf)>>8,calcChecksum16(buf)&0xFF]);
+        
+        const w=port.writable.getWriter();await w.write(final);w.releaseLock();
+        const content=mode==='hex'?buf2hex(final):new TextDecoder().decode(final);
+        addLogContent(getLogTag(true), content, 'send');
+    }catch(e){addLog(lang.sendFail+e.message,'normal')}
+};
+
+document.getElementById('clearBtn').onclick=()=>{logBox.innerHTML='';};
+
+function addLog(msg,type){
+    const t=new Date().toLocaleTimeString();
+    const div=document.createElement('div');
+    div.className='log-item log-'+type;
+    div.textContent=`[${t}] ${msg}`;
+    logBox.appendChild(div);
+    logBox.scrollTop=logBox.scrollHeight;
+}
+
+function addLogContent(tag, content, type){
+    const t=new Date().toLocaleTimeString();
+    const div=document.createElement('div');
+    div.className='log-item';
+    
+    const info = document.createElement('div');
+    info.className = 'log-normal';
+    info.textContent = `[${t}] ${tag}`;
+    
+    const contentLine = document.createElement('div');
+    contentLine.className = `log-content log-${type}`;
+    contentLine.textContent = content;
+
+    div.appendChild(info);
+    div.appendChild(contentLine);
+    logBox.appendChild(div);
+    logBox.scrollTop=logBox.scrollHeight;
+}
+
+updateLanguage();
+</script>
+</body>
+</html>
